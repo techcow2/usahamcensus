@@ -53,11 +53,6 @@ Here's a glimpse of the data categories included for each state:
 - **Advanced**
 - **Extra**
 
-## 🎯 Future Improvements
-- **Add Filters**: Allow users to filter data by license class.
-- **User Contributions**: Enable users to submit their data to keep the census updated.
-- **Enhanced Visualizations**: Incorporate additional graphs and charts for better insights.
-
 ## 🙌 Contributing
 
 Contributions are welcome! If you have suggestions or improvements, feel free to open an issue or submit a pull request.
