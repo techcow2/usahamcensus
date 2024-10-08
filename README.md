@@ -30,8 +30,8 @@ To run this project locally, follow these steps:
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/us-ham-radio-census.git
-   cd us-ham-radio-census
+   git clone https://github.com/techcow2/usahamcensus.git
+   cd usahamcensus
 ## 📂 Getting Started
 
 ### Open index.html
