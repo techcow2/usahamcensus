@@ -1,5 +1,7 @@
 # 📡 U.S. Licensed Amateur Radio Operator Interactive Census Map
 
+![Untitled](https://github.com/user-attachments/assets/c2fee911-ffd6-4edc-b3cf-2871927636c0)
+
 Welcome to the **Interactive U.S. Ham Radio Operators Census**! This project visualizes the distribution of licensed ham radio operators across the United States, providing insights into the vibrant amateur radio community. 📅 Last updated: **October 2024**.
 
 ## 🌟 Features
