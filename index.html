@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <meta property="og:image" content="og.png">
+  <link rel="icon" type="image/png" href="usa.png" sizes="16x16">
+  <script defer data-domain="hamradar.com/usacensus" src="https://stats.techray.dev/js/script.js"></script>
+  <title>U.S. Ham Radio Operators Map - Interactive</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f0f0f0; }
+    #map-container { width: 100%; height: 100vh; position: relative; }
+    .state { stroke: #fff; stroke-width: 1px; transition: all 0.3s; }
+    .state:hover { filter: brightness(85%); cursor: pointer; }
+    .tooltip { position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-size: 14px; pointer-events: none; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    h1 { position: absolute; top: 10px; left: 10px; margin: 0; color: #333; background: rgba(255,255,255,0.7); padding: 10px; border-radius: 5px; }
+    .legend { position: absolute; bottom: 20px; left: 20px; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .legend-item { display: inline-block; margin-right: 15px; }
+    .legend-color { display: inline-block; width: 20px; height: 20px; margin-right: 5px; vertical-align: middle; border: 1px solid #333; }
+    #info-panel { position: absolute; top: 70px; right: 20px; background: rgba(255,255,255,0.9); padding: 15px; border-radius: 5px; width: 250px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    #total-operators { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+    #state-ranking { height: 200px; overflow-y: auto; }
+    .rank-item { margin-bottom: 5px; }
+    #state-details { display: none; position: absolute; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.2); z-index: 1000; max-width: 400px; width: 100%; }
+    #state-details h2 { margin-top: 0; }
+    #state-details table { width: 100%; border-collapse: collapse; }
+    #state-details th, #state-details td { padding: 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    #state-details th { background-color: #f2f2f2; }
+    #close-details { position: absolute; top: 10px; right: 10px; cursor: pointer; font-size: 20px; }
+    @media (max-width: 768px) {
+      h1 { font-size: 18px; width: 80%; }
+      .legend { 
+        bottom: 10px; 
+        left: 10px; 
+        padding: 5px; 
+        max-width: 80%; 
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+      .legend-item { 
+        margin-right: 5px; 
+        margin-bottom: 5px;
+        font-size: 12px;
+      }
+      .legend-color { 
+        width: 12px; 
+        height: 12px; 
+      }
+      #state-details { 
+        width: 90%;
+        max-width: none;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      #state-details table {
+        font-size: 14px;
+      }
+      #info-panel {
+        top: auto;
+        bottom: 70px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-height: 30vh;
+        overflow-y: auto;
+      }
+      #total-operators { 
+        font-size: 16px; 
+        margin-bottom: 5px;
+      }
+      #state-ranking { 
+        height: auto; 
+        max-height: 20vh;
+      }
+      .rank-item {
+        font-size: 12px;
+        margin-bottom: 3px;
+      }
+      .data-info {
+        display: none;
+      }
+    }
+    .watermark {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      font-size: 18px;
+      color: rgba(0, 0, 0, 0.7);
+      text-decoration: none;
+      z-index: 1000;
+      background-color: rgba(255, 255, 255, 0.7);
+      padding: 5px 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    }
+
+    @media (max-width: 768px) {
+      .watermark {
+        font-size: 16px;
+        bottom: 5px;
+        right: 5px;
+      }
+    }
+    .data-info {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.7);
+      background-color: rgba(255, 255, 255, 0.7);
+      padding: 5px 10px;
+      border-radius: 5px;
+      text-align: center;
+      z-index: 1000;
+    }
+
+    @media (max-width: 768px) {
+      .data-info {
+        font-size: 10px;
+        padding: 3px 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map-container">
+    <h1>U.S. Ham Radio Operators by State (October 2024)</h1>
+    <div class="legend"></div>
+    <div id="info-panel">
+      <div id="total-operators"></div>
+      <h3>Top 10 States</h3>
+      <div id="state-ranking"></div>
+    </div>
+  </div>
+
+  <div id="state-details">
+    <span id="close-details" style="font-size: 30px; padding: 10px;">×</span>
+    <h2 id="state-name"></h2>
+    <table id="license-data">
+      <tbody>
+        <tr>
+          <th>License Class</th>
+          <th>Number of Operators</th>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <a href="https://hamradar.com" target="_blank" rel="noopener noreferrer" class="watermark" style="font-size: 22.77px;">Created by HamRadar.com</a>
+
+  <div class="data-info">
+    Data source: <a href="http://wireless.fcc.gov/uls/index.htm?job=transaction&amp;page=weekly" target="_blank" rel="noopener noreferrer">FCC</a> - Updated: 10/05/2024
+  </div>
+
+  <script>
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    const svg = d3.select("#map-container")
+      .append("svg")
+      .attr("viewBox", `0 0 ${width} ${height}`)
+      .style("width", "100%")
+      .style("height", "auto");
+
+    const projection = d3.geoAlbersUsa()
+      .scale(width)
+      .translate([width / 2, height / 2]);
+
+    const path = d3.geoPath().projection(projection);
+
+    const colorScale = d3.scaleThreshold()
+      .domain([5000, 10000, 20000, 40000, 80000])
+      .range(['#c6dbef', '#bdd7e7', '#6baed6', '#3182bd', '#08519c', '#08306b']);
+
+    const tooltip = d3.select("#map-container")
+      .append("div")
+      .attr("class", "tooltip")
+      .style("opacity", 0);
+
+    
+    const hamData = {
+    "Alabama": { novice: 58, technician: 5390, general: 3194, advanced: 483, extra: 2923, total: 12048 },
+    "Alaska": { novice: 15, technician: 1515, general: 870, advanced: 129, extra: 676, total: 3205 },
+    "Arizona": { novice: 104, technician: 10873, general: 5045, advanced: 915, extra: 4602, total: 21539 },
+    "Arkansas": { novice: 34, technician: 4004, general: 1967, advanced: 283, extra: 1628, total: 7916 },
+    "California": { novice: 586, technician: 56074, general: 18784, advanced: 3065, extra: 15451, total: 93960 },
+    "Colorado": { novice: 81, technician: 10525, general: 4502, advanced: 644, extra: 3805, total: 19557 },
+    "Connecticut": { novice: 108, technician: 3002, general: 1837, advanced: 358, extra: 1684, total: 6989 },
+    "Delaware": { novice: 19, technician: 754, general: 497, advanced: 79, extra: 419, total: 1768 },
+    "District of Columbia": { novice: 4, technician: 259, general: 118, advanced: 19, extra: 120, total: 520 },
+    "Florida": { novice: 386, technician: 17985, general: 11655, advanced: 2316, extra: 9991, total: 42333 },
+    "Georgia": { novice: 93, technician: 8688, general: 4929, advanced: 751, extra: 4187, total: 18648 },
+    "Guam": { novice: 1, technician: 90, general: 43, advanced: 8, extra: 99, total: 241 },
+    "Hawaii": { novice: 25, technician: 1939, general: 742, advanced: 130, extra: 671, total: 3507 },
+    "Idaho": { novice: 26, technician: 6406, general: 2564, advanced: 231, extra: 1664, total: 10891 },
+    "Illinois": { novice: 218, technician: 8313, general: 5161, advanced: 908, extra: 4387, total: 18987 },
+    "Indiana": { novice: 146, technician: 7054, general: 4127, advanced: 660, extra: 3190, total: 15177 },
+    "Iowa": { novice: 47, technician: 2929, general: 1651, advanced: 364, extra: 1491, total: 6482 },
+    "Kansas": { novice: 58, technician: 3323, general: 1913, advanced: 271, extra: 1538, total: 7103 },
+    "Kentucky": { novice: 67, technician: 4501, general: 2584, advanced: 367, extra: 2035, total: 9554 },
+    "Louisiana": { novice: 53, technician: 2554, general: 1687, advanced: 304, extra: 1361, total: 5959 },
+    "Maine": { novice: 35, technician: 1828, general: 1234, advanced: 194, extra: 1095, total: 4386 },
+    "Maryland": { novice: 88, technician: 4644, general: 2763, advanced: 501, extra: 2663, total: 10659 },
+    "Massachusetts": { novice: 138, technician: 5671, general: 3414, advanced: 609, extra: 3286, total: 13118 },
+    "Michigan": { novice: 155, technician: 9580, general: 5287, advanced: 897, extra: 4687, total: 20606 },
+    "Minnesota": { novice: 98, technician: 5118, general: 2951, advanced: 545, extra: 2504, total: 11216 },
+    "Mississippi": { novice: 19, technician: 2087, general: 1356, advanced: 206, extra: 1268, total: 4936 },
+    "Missouri": { novice: 90, technician: 7372, general: 3839, advanced: 575, extra: 3081, total: 14957 },
+    "Montana": { novice: 24, technician: 2236, general: 1180, advanced: 162, extra: 845, total: 4447 },
+    "Nebraska": { novice: 23, technician: 1701, general: 1013, advanced: 206, extra: 756, total: 3699 },
+    "Nevada": { novice: 36, technician: 4338, general: 1872, advanced: 298, extra: 1555, total: 8099 },
+    "New Hampshire": { novice: 49, technician: 2410, general: 1519, advanced: 245, extra: 1490, total: 5713 },
+    "New Jersey": { novice: 179, technician: 5802, general: 3135, advanced: 644, extra: 3070, total: 12830 },
+    "New Mexico": { novice: 23, technician: 3110, general: 1453, advanced: 251, extra: 1333, total: 6170 },
+    "New York": { novice: 341, technician: 11470, general: 6568, advanced: 1235, extra: 5930, total: 25544 },
+    "North Carolina": { novice: 129, technician: 10302, general: 5872, advanced: 918, extra: 5232, total: 22453 },
+    "North Dakota": { novice: 9, technician: 716, general: 405, advanced: 61, extra: 313, total: 1504 },
+    "Ohio": { novice: 289, technician: 12050, general: 7317, advanced: 1157, extra: 6135, total: 26948 },
+    "Oklahoma": { novice: 41, technician: 4938, general: 2526, advanced: 339, extra: 1994, total: 9838 },
+    "Oregon": { novice: 85, technician: 10954, general: 4886, advanced: 633, extra: 3598, total: 20156 },
+    "Pennsylvania": { novice: 245, technician: 10421, general: 6171, advanced: 1205, extra: 5636, total: 23678 },
+    "Puerto Rico": { novice: 91, technician: 2956, general: 1214, advanced: 165, extra: 742, total: 5168 },
+    "Rhode Island": { novice: 20, technician: 819, general: 478, advanced: 86, extra: 459, total: 1862 },
+    "South Carolina": { novice: 50, technician: 4666, general: 2720, advanced: 434, extra: 2412, total: 10282 },
+    "South Dakota": { novice: 16, technician: 911, general: 579, advanced: 111, extra: 506, total: 2123 },
+    "Tennessee": { novice: 97, technician: 9345, general: 5223, advanced: 754, extra: 4476, total: 19895 },
+    "Texas": { novice: 250, technician: 26326, general: 13273, advanced: 2075, extra: 11319, total: 53243 },
+    "Utah": { novice: 32, technician: 12567, general: 3318, advanced: 286, extra: 2184, total: 18387 },
+    "Vermont": { novice: 12, technician: 947, general: 507, advanced: 96, extra: 504, total: 2066 },
+    "Virgin Islands": { novice: 0, technician: 122, general: 68, advanced: 11, extra: 48, total: 249 },
+    "Virginia": { novice: 152, technician: 9217, general: 5302, advanced: 838, extra: 4890, total: 20399 },
+    "Washington": { novice: 166, technician: 18409, general: 7988, advanced: 1019, extra: 5742, total: 33324 },
+    "West Virginia": { novice: 35, technician: 2948, general: 1425, advanced: 183, extra: 1268, total: 5859 },
+    "Wisconsin": { novice: 82, technician: 4727, general: 3183, advanced: 520, extra: 2607, total: 11119 },
+    "Wyoming": { novice: 8, technician: 1018, general: 663, advanced: 104, extra: 503, total: 2296 },
+    };
+
+    
+    const totalOperators = Object.values(hamData).reduce((a, b) => a + b.total, 0);
+    d3.select("#total-operators").text(`Total Operators: ${totalOperators.toLocaleString()}`);
+
+    
+    const stateRanking = Object.entries(hamData)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 10);
+
+    const rankingHtml = stateRanking.map((state, index) => 
+      `<div class="rank-item">${index + 1}. ${state[0]}: ${state[1].total.toLocaleString()}</div>`
+    ).join('');
+
+    d3.select("#state-ranking").html(rankingHtml);
+
+    // Load the US TopoJSON data
+    d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(function(us) {
+      // Draw the map
+      svg.append("g")
+        .selectAll("path")
+        .data(topojson.feature(us, us.objects.states).features)
+        .enter().append("path")
+        .attr("class", "state")
+        .attr("d", path)
+        .attr("fill", d => {
+          const stateName = d.properties.name;
+          return colorScale(hamData[stateName]?.total || 0);
+        })
+        .on("mouseover", function(event, d) {
+          const stateName = d.properties.name;
+          const operators = hamData[stateName]?.total || "N/A";
+          tooltip.transition().duration(200).style("opacity", .9);
+          tooltip.html(`<strong>${stateName}</strong><br>${operators.toLocaleString()} operators`)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", function(d) {
+          tooltip.transition().duration(500).style("opacity", 0);
+        })
+        .on("click", function(event, d) {
+          showStateDetails(d.properties.name, event.pageX, event.pageY);
+        });
+
+      // Add state borders
+      svg.append("path")
+        .datum(topojson.mesh(us, us.objects.states, (a, b) => a !== b))
+        .attr("fill", "none")
+        .attr("stroke", "white")
+        .attr("stroke-linejoin", "round")
+        .attr("d", path);
+    }).catch(function(error){
+      console.error("Error loading TopoJSON data:", error);
+    });
+
+    
+    const legend = d3.select(".legend");
+    const legendItems = [
+      { color: '#c6dbef', min: 0, max: 5000 },
+      ...colorScale.range().slice(1).map((color, i) => {
+        const d = colorScale.invertExtent(color);
+        return { color: color, min: d[0], max: d[1] };
+      })
+    ];
+
+    
+    legend.selectAll("*").remove();
+
+    
+    legendItems.forEach((item, i) => {
+      const legendItem = legend.append("div").attr("class", "legend-item");
+      legendItem.append("div")
+        .attr("class", "legend-color")
+        .style("background-color", item.color);
+      legendItem.append("span")
+        .text(`${item.min.toLocaleString()} - ${item.max ? item.max.toLocaleString() : '80,000+'}`);
+    });
+
+    
+    function showStateDetails(stateName, x, y) {
+      const stateData = hamData[stateName];
+      if (!stateData) {
+        alert(`${stateName} data is not available.`);
+        return;
+      }
+
+      console.log(`Displaying details for ${stateName}:`, stateData); // Debugging statement
+
+      const detailsPanel = d3.select("#state-details");
+
+      d3.select("#state-name").text(stateName);
+
+      const table = d3.select("#license-data").select("tbody");
+      table.selectAll("tr.data-row").remove();
+
+      const licenseEntries = Object.entries(stateData).filter(([key]) => key !== 'total');
+      console.log(`License Entries for ${stateName}:`, licenseEntries); // Debugging statement
+
+      const rows = table.selectAll("tr.data-row")
+        .data(licenseEntries)
+        .join("tr")
+        .attr("class", "data-row");
+
+      rows.selectAll("td")
+        .data(d => [d[0].charAt(0).toUpperCase() + d[0].slice(1), d[1].toLocaleString()])
+        .join("td")
+        .text(d => d);
+
+      detailsPanel.style("display", "block");
+
+      
+      const panelWidth = detailsPanel.node().offsetWidth;
+      const panelHeight = detailsPanel.node().offsetHeight;
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      let left = x + 10;
+      let top = y + 10;
+
+      
+      if (left + panelWidth > windowWidth) {
+        left = windowWidth - panelWidth - 10;
+      }
+      if (top + panelHeight > windowHeight) {
+        top = windowHeight - panelHeight - 10;
+      }
+
+      detailsPanel
+        .style("left", left + "px")
+        .style("top", top + "px");
+
+      
+      if (window.innerWidth <= 768) {
+        const infoPanel = d3.select("#info-panel");
+        infoPanel.style("display", infoPanel.style("display") === "none" ? "block" : "none");
+      }
+
+     
+      detailsPanel.on("click", function(event) {
+        event.stopPropagation();
+      });
+    }
+
+    
+    function closeStateDetails() {
+      d3.select("#state-details").style("display", "none");
+    }
+
+    d3.select("#close-details").on("click", function(event) {
+      event.stopPropagation();
+      closeStateDetails();
+    });
+
+    
+    document.body.addEventListener('click', function(event) {
+      const clickedElement = event.target;
+      const stateDetailsElement = document.getElementById('state-details');
+      const mapContainer = document.getElementById('map-container');
+
+      
+      if (!clickedElement.classList.contains('state') && !stateDetailsElement.contains(clickedElement) && mapContainer.contains(clickedElement)) {
+        closeStateDetails();
+      }
+    });
+
+    
+    function pulseStates() {
+      svg.selectAll(".state")
+        .transition()
+        .duration(2000)
+        .attr("opacity", 0.7)
+        .transition()
+        .duration(2000)
+        .attr("opacity", 1)
+        .on("end", pulseStates);
+    }
+
+    pulseStates();
+
+    
+    const zoom = d3.zoom()
+      .scaleExtent([1, 8])
+      .on("zoom", zoomed);
+
+    svg.call(zoom);
+
+    function zoomed(event) {
+      svg.selectAll("path")
+        .attr("transform", event.transform);
+    }
+
+    
+    svg.on("dblclick.zoom", null);
+    svg.on("dblclick", function() {
+      svg.transition().duration(750).call(
+        zoom.transform,
+        d3.zoomIdentity,
+        d3.zoomTransform(svg.node()).invert([width / 2, height / 2])
+      );
+    });
+
+    
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) {
+      svg.selectAll(".state")
+        .on("touchstart", function(event, d) {
+          event.preventDefault();
+          const stateName = d.properties.name;
+          const operators = hamData[stateName]?.total || "N/A";
+          tooltip.transition().duration(200).style("opacity", .9);
+          tooltip.html(`<strong>${stateName}</strong><br>${operators.toLocaleString()} operators`)
+            .style("left", (event.touches[0].pageX + 10) + "px")
+            .style("top", (event.touches[0].pageY - 28) + "px");
+        })
+        .on("touchend", function() {
+          tooltip.transition().duration(500).style("opacity", 0);
+        });
+    }
+
+   
+    if (isTouchDevice) {
+      svg.call(zoom)
+        .on("dblclick.zoom", null)
+        .on("touchstart", function(event) {
+          if (event.touches.length === 2) {
+            event.preventDefault();
+          }
+        });
+    }
+
+    
+    function updateLayout() {
+      const isMobile = window.innerWidth <= 768;
+      d3.select("#info-panel").style("display", isMobile ? "none" : "block");
+      d3.select(".legend").style("display", isMobile ? "none" : "block");
+    }
+
+   
+    updateLayout();
+    window.addEventListener("resize", updateLayout);
+
+    
+    d3.select("#state-details").on("touchstart", function(event) {
+      if (event.target.id === "state-details") {
+        d3.select("#state-details").style("display", "none");
+      }
+    });
+  </script>
+</body>
+</html>
