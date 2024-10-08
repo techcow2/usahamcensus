@@ -47,11 +47,11 @@ Simply open `index.html` in your web browser to view the interactive map.
 ## 📈 Data Breakdown
 
 Here's a glimpse of the data categories included for each state:
-- **Novice**: Entry-level operators
-- **Technician**: Operators with basic technical skills
-- **General**: Intermediate-level operators
-- **Advanced**: Operators with more advanced knowledge
-- **Extra**: The highest level of operator certification
+- **Novice**
+- **Technician**
+- **General**
+- **Advanced**
+- **Extra**
 
 ## 🎯 Future Improvements
 - **Add Filters**: Allow users to filter data by license class.
